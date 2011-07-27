@@ -21,7 +21,11 @@ try:
     #SA 0.5 support
     from sqlalchemy.orm import RelationProperty
 except ImportError:
-    RelationProperty = None
+    #SA 0.7 support
+    try:
+        from sqlalchemy.orm.properties import RelationshipProperty, RelationProperty
+    except ImportError:
+        RelationProperty = None
 
 
 import config
@@ -216,8 +220,8 @@ class ModelFactory(object):
                 primaryjoin=''
                 lookup = mtl()
                 if rel.primaryjoin is not None:
-                    right_lookup = lookup.get(rel.primaryjoin.right.table.name, '%s.c.'%rel.primaryjoin.right.table.name)
-                    left_lookup = lookup.get(rel.primaryjoin.left.table.name, '%s.c.'%rel.primaryjoin.left.table.name)
+                    right_lookup = lookup.get(rel.primaryjoin.right.table.name, '%s.c'%rel.primaryjoin.right.table.name)
+                    left_lookup = lookup.get(rel.primaryjoin.left.table.name, '%s.c'%rel.primaryjoin.left.table.name)
                     
                     primaryjoin = ", primaryjoin='%s.%s==%s.%s'"%(left_lookup,
                                                                   rel.primaryjoin.left.name,
@@ -227,9 +231,8 @@ class ModelFactory(object):
                 secondaryjoin = ''
                 if rel.secondary is not None:
                     secondary = ", secondary=%s"%rel.secondary.name
-                    right_lookup = lookup.get(rel.secondaryjoin.right.table.name, '%s.c.'%rel.secondaryjoin.right.table.name)
-                    left_lookup = lookup.get(rel.secondaryjoin.left.table.name, '%s.c.'%rel.secondaryjoin.left.table.name)
-#                    import ipdb; ipdb.set_trace()
+                    right_lookup = lookup.get(rel.secondaryjoin.right.table.name, '%s.c'%rel.secondaryjoin.right.table.name)
+                    left_lookup = lookup.get(rel.secondaryjoin.left.table.name, '%s.c'%rel.secondaryjoin.left.table.name)
                     secondaryjoin = ", secondaryjoin='%s.%s==%s.%s'"%(left_lookup,
                                                                   rel.secondaryjoin.left.name,
                                                                   right_lookup,
@@ -292,23 +295,22 @@ class ModelFactory(object):
             column = columns[0]
             log.info('    Adding <primary> foreign key for:%s'%related_table.name)
             backref_name = plural(table_name)
-#            import ipdb; ipdb.set_trace()
             rel = relation(singular(name2label(related_table.name, related_table.schema)), 
-                           primaryjoin=column==column.foreign_keys[0].column)#, backref=backref_name)
+                           primaryjoin=column==list(column.foreign_keys)[0].column)#, backref=backref_name)
             setattr(Temporal, related_table.name, _deferred_relationship(Temporal, rel))
         
         
         #add in many-to-many relations
         for join_table in self.get_related_many_to_many_tables(table.name):
 
-            primary_column = [c for c in join_table.columns if c.foreign_keys and c.foreign_keys[0].column.table==table][0]
+            primary_column = [c for c in join_table.columns if c.foreign_keys and list(c.foreign_keys)[0].column.table==table][0]
 #            import ipdb; ipdb.set_trace();
             
             for column in join_table.columns:
                 if column.foreign_keys:
-                    key = column.foreign_keys[0]
+                    key = list(column.foreign_keys)[0]
                     if key.column.table is not table:
-                        related_column = related_table = column.foreign_keys[0].column
+                        related_column = related_table = list(column.foreign_keys)[0].column
                         related_table = related_column.table
                         log.info('    Adding <secondary> foreign key(%s) for:%s'%(key, related_table.name))
 #                        import ipdb; ipdb.set_trace()
@@ -316,7 +318,7 @@ class ModelFactory(object):
                                                                                          relation(singular(name2label(related_table.name,
                                                                                                              related_table.schema)),
                                                                                                   secondary=join_table,
-                                                                                                  primaryjoin=primary_column.foreign_keys[0].column==primary_column,
+                                                                                                  primaryjoin=list(primary_column.foreign_keys)[0].column==primary_column,
                                                                                                   secondaryjoin=column==related_column
                                                                                                   )))
                         break;
@@ -340,14 +342,14 @@ class ModelFactory(object):
         fks = {}
         for column in table.columns:
             if len(column.foreign_keys)>0:
-                fks.setdefault(column.foreign_keys[0].column.table, []).append(column)
+                fks.setdefault(list(column.foreign_keys)[0].column.table, []).append(column)
         return fks
 
     def is_many_to_many_table(self, table):
         fks = self.get_foreign_keys(table).values()
         if len(fks) >= 2:
             if len(fks[0]) == 1 and len(fks[1]) == 1:
-                return fks[0][0].foreign_keys[0].column.table != fks[1][0].foreign_keys[0].column.table
+                return list(fks[0][0].foreign_keys)[0].column.table != list(fks[1][0].foreign_keys)[0].column.table
         return False
 
     def is_only_many_to_many_table(self, table):
@@ -368,7 +370,7 @@ class ModelFactory(object):
         for table in self.get_many_to_many_tables():
             for column in table.columns:
                 if column.foreign_keys:
-                    key = column.foreign_keys[0]
+                    key = list(column.foreign_keys)[0]
                     if key.column.table is src_table:
                         tables.append(table)
                         break
