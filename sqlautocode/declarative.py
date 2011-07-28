@@ -139,7 +139,6 @@ class ModelFactory(object):
         tables = self.get_many_to_many_tables()
         models = self.models
 
-
         s = StringIO()
         engine = self.config.engine
         if not isinstance(engine, basestring):
@@ -151,6 +150,8 @@ class ModelFactory(object):
         self.used_table_names = []
         self.used_model_names = []
         for table in tables:
+            if table not in self.tables:
+                continue
             table_name = self.find_new_name(table.name, self.used_table_names)
             self.used_table_names.append(table_name)
             s.write('%s = %s\n\n'%(table_name, self._table_repr(table)))
@@ -167,8 +168,15 @@ class ModelFactory(object):
 
     @property
     def tables(self):
-        return self._metadata.tables.keys()
+        if config.options.tables:
+            tables = set(config.options.tables)
+            return [self._metadata.tables[t] for t in set(self._metadata.tables.keys()).intersection(tables)]
+        return self._metadata.tables
 
+    @property
+    def table_names(self):
+        return [t.name for t in self.tables]
+    
     @property
     def models(self):
         if hasattr(self, '_models'):
@@ -285,10 +293,11 @@ class ModelFactory(object):
             Temporal._decl_class_registry[model_name] = Temporal._decl_class_registry['Temporal']
             del Temporal._decl_class_registry['Temporal']
 
-        
         #add in single relations
         fks = self.get_foreign_keys(table)
         for related_table in sorted(fks.keys(), by_name):
+            if related_table not in self.tables:
+                continue
             columns = fks[related_table]
             if len(columns)>1:
                 continue
@@ -303,6 +312,8 @@ class ModelFactory(object):
         #add in many-to-many relations
         for join_table in self.get_related_many_to_many_tables(table.name):
 
+            if join_table not in self.tables:
+                continue
             primary_column = [c for c in join_table.columns if c.foreign_keys and list(c.foreign_keys)[0].column.table==table][0]
 #            import ipdb; ipdb.set_trace();
             
@@ -312,6 +323,8 @@ class ModelFactory(object):
                     if key.column.table is not table:
                         related_column = related_table = list(column.foreign_keys)[0].column
                         related_table = related_column.table
+                        if related_table not in self.tables:
+                            continue
                         log.info('    Adding <secondary> foreign key(%s) for:%s'%(key, related_table.name))
 #                        import ipdb; ipdb.set_trace()
                         setattr(Temporal, plural(related_table.name), _deferred_relationship(Temporal,
@@ -361,7 +374,7 @@ class ModelFactory(object):
         return sorted(self._many_to_many_tables, by_name)
 
     def get_non_many_to_many_tables(self):
-        tables = [table for table in self._metadata.tables.values() if not(self.is_only_many_to_many_table(table))]
+        tables = [table for table in self.tables if not(self.is_only_many_to_many_table(table))]
         return sorted(tables, by_name)
 
     def get_related_many_to_many_tables(self, table_name):
