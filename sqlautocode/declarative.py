@@ -7,6 +7,7 @@ except ImportError:
     from StringIO import StringIO
 
 import sqlalchemy
+from sqlalchemy import exc
 from sqlalchemy import MetaData
 from sqlalchemy.ext.declarative import declarative_base
 try:
@@ -254,7 +255,11 @@ class ModelFactory(object):
             def __repr__(cls):
                 log.debug('repring class with name %s'%cls.__name__)
                 try:
-                    mapper = class_mapper(cls)
+                    mapper = None
+                    try:
+                        mapper = class_mapper(cls)
+                    except exc.InvalidRequestError:
+                        log.warn("A proper mapper could not be generated for the class %s, no relations will be created"%model_name)
                     s = ""
                     s += "class "+model_name+'(DeclarativeBase):\n'
                     if is_many_to_many_table:
@@ -269,11 +274,12 @@ class ModelFactory(object):
                     s += "\n    #relation definitions\n"
                     ess = s
                     # this is only required in SA 0.5
-                    if RelationProperty: 
+                    if mapper and RelationProperty: 
                         for prop in mapper.iterate_properties:
                             if isinstance(prop, RelationshipProperty):
                                 s+='    %s\n'%cls._relation_repr(prop)
                     return s
+                    
                 except Exception, e:
                     log.error("Could not generate class for: %s"%cls.__name__)
                     from traceback import format_exc
