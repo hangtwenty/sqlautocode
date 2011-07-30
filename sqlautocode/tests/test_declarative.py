@@ -241,17 +241,28 @@ class _TestModelFactoryNew:
         
 class TestModelFactoryMulti:
 
-    def setup(self):
+    def __init__(self, *args, **kw):
+        
         self.metadata = make_test_db_multi()
         engine = self.metadata.bind
         self.config = DummyConfig(engine)
         self.factory = ModelFactory(self.config)
 #        self.factory.models
-
+        
+    
     def test_get_foreign_keys(self):
         fks = [t.name for t in self.factory.get_foreign_keys(self.metadata.tables['song']).keys()]
         
-#        import ipdb; ipdb.set_trace()
-#        pp.pprint(fks)
         eq_(fks, ['album'])
         
+    def test_get_composite_fks(self):
+        fks = sorted([k.column.name for k in self.factory.get_composite_foreign_keys(self.metadata.tables['song'])[0]])
+        eq_(fks, [u'albumartist', u'albumname'] )
+ 
+    def test_render_song(self):
+        self.factory.models
+        song = self.factory.models[1]
+        print song.__repr__()
+        eq_(song.__repr__(), '')
+        
+ 

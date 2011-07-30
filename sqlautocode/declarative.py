@@ -8,7 +8,7 @@ except ImportError:
 
 import sqlalchemy
 from sqlalchemy import exc
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, ForeignKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 try:
     from sqlalchemy.ext.declarative import _deferred_relationship
@@ -31,7 +31,7 @@ except ImportError:
 
 import config
 import constants
-from formatter import _repr_coltype_as
+from formatter import _repr_coltype_as, foreignkeyconstraint_repr
 
 log = logging.getLogger('saac.decl')
 log.setLevel(logging.DEBUG)
@@ -39,6 +39,9 @@ handler = logging.StreamHandler()
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 log.addHandler(handler)
+
+def fk_repr(self):
+    import ipdb; ipdb.set_trace()
 
 def by_name(a, b):
     if a.name>b.name:
@@ -268,7 +271,11 @@ class ModelFactory(object):
                     else:
                         s += "    __tablename__ = '%s'\n\n"%table_name
                         if hasattr(cls, '__table_args__'):
-                            s+="    __table_args__ = %s\n\n"%cls.__table_args__
+                            if cls.__table_args__[0]:
+                                for fkc in cls.__table_args__[0]:
+                                    fkc.__class__.__repr__ = foreignkeyconstraint_repr
+                                    break
+                            s+="    __table_args__ = (%s, %s)\n\n"%(cls.__table_args__[0], cls.__table_args__[1])
                         s += "    #column definitions\n"
                         for column in sorted(cls.__table__.c, by_name):
                             s += "    %s = %s\n"%(column.name, column_repr(column))
@@ -290,10 +297,11 @@ class ModelFactory(object):
 
         #hack the class to have the right classname
         Temporal.__name__ = model_name
-
+        Temporal.__table_args__ = ([], {})
+        
         #add in the schema
         if self.config.schema:
-            Temporal.__table_args__ = {'schema':table.schema}
+            Temporal.__table_args__[1]['schema'] = table.schema
 
         #trick sa's model registry to think the model is the correct name
         if model_name != 'Temporal':
@@ -314,8 +322,18 @@ class ModelFactory(object):
         
             setattr(Temporal, related_table.name, _deferred_relationship(Temporal, rel))
         
-        #add in compound foreign_keys
-    
+        #add in composite foreign_keys
+        for fk in self.get_composite_foreign_keys(table):
+            log.info('    Adding composite FKs for: %s'%[item.column.name for item in fk])
+#            import ipdb; ipdb.set_trace()
+            Temporal.__table_args__[0].append(ForeignKeyConstraint([k.parent.name for k in fk],
+                                                                    ["%s.%s"%(k.column.table.name, k.column.name) for k in fk], 
+                                                                    use_alter=False,
+                                                                    table=table
+                                                                    ))
+            
+            #remove foreign keys from associated columns (they are likely wrong)
+                
         #add in many-to-many relations
         for join_table in self.get_related_many_to_many_tables(table.name):
 
@@ -366,10 +384,10 @@ class ModelFactory(object):
                 keys_by_column[fk.parent] = fk
         return keys_by_column
 
-    def compound_foreign_keys(self, table):
+    def get_composite_foreign_keys(self, table):
         l = []
         fks = self.get_foreign_keys(table)
-        for table, keys in fks:
+        for table, keys in fks.iteritems():
             if len(keys)>1:
                 l.append(keys)
         return l
