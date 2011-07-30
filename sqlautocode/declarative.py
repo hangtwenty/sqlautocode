@@ -7,7 +7,7 @@ except ImportError:
     from StringIO import StringIO
 
 import sqlalchemy
-from sqlalchemy import exc
+from sqlalchemy import exc, and_
 from sqlalchemy import MetaData, ForeignKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 try:
@@ -39,9 +39,6 @@ handler = logging.StreamHandler()
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 log.addHandler(handler)
-
-def fk_repr(self):
-    import ipdb; ipdb.set_trace()
 
 def by_name(a, b):
     if a.name>b.name:
@@ -232,7 +229,7 @@ class ModelFactory(object):
                 target = target.__name__
                 primaryjoin=''
                 lookup = mtl()
-                if rel.primaryjoin is not None:
+                if rel.primaryjoin is not None and hasattr(rel.primaryjoin, 'right'):
                     right_lookup = lookup.get(rel.primaryjoin.right.table.name, '%s.c'%rel.primaryjoin.right.table.name)
                     left_lookup = lookup.get(rel.primaryjoin.left.table.name, '%s.c'%rel.primaryjoin.left.table.name)
                     
@@ -240,6 +237,9 @@ class ModelFactory(object):
                                                                   rel.primaryjoin.left.name,
                                                                   right_lookup,
                                                                   rel.primaryjoin.right.name)
+                elif hasattr(rel, '_as_string'):
+                    primaryjoin=', primaryjoin="%s"'%rel._as_string
+                    
                 secondary = ''
                 secondaryjoin = ''
                 if rel.secondary is not None:
@@ -271,11 +271,11 @@ class ModelFactory(object):
                     else:
                         s += "    __tablename__ = '%s'\n\n"%table_name
                         if hasattr(cls, '__table_args__'):
-                            if cls.__table_args__[0]:
-                                for fkc in cls.__table_args__[0]:
-                                    fkc.__class__.__repr__ = foreignkeyconstraint_repr
-                                    break
-                            s+="    __table_args__ = (%s, %s)\n\n"%(cls.__table_args__[0], cls.__table_args__[1])
+                            #if cls.__table_args__[0]:
+                                #for fkc in cls.__table_args__[0]:
+                                #    fkc.__class__.__repr__ = foreignkeyconstraint_repr
+                                #    break
+                            s+="    __table_args__ = %s\n\n"%cls.__table_args__
                         s += "    #column definitions\n"
                         for column in sorted(cls.__table__.c, by_name):
                             s += "    %s = %s\n"%(column.name, column_repr(column))
@@ -297,7 +297,9 @@ class ModelFactory(object):
 
         #hack the class to have the right classname
         Temporal.__name__ = model_name
-        Temporal.__table_args__ = ([], {})
+        
+        #set up some blank table args
+        Temporal.__table_args__ = {} 
         
         #add in the schema
         if self.config.schema:
@@ -322,18 +324,33 @@ class ModelFactory(object):
         
             setattr(Temporal, related_table.name, _deferred_relationship(Temporal, rel))
         
-        #add in composite foreign_keys
-        for fk in self.get_composite_foreign_keys(table):
-            log.info('    Adding composite FKs for: %s'%[item.column.name for item in fk])
-#            import ipdb; ipdb.set_trace()
-            Temporal.__table_args__[0].append(ForeignKeyConstraint([k.parent.name for k in fk],
-                                                                    ["%s.%s"%(k.column.table.name, k.column.name) for k in fk], 
-                                                                    use_alter=False,
-                                                                    table=table
-                                                                    ))
-            
-            #remove foreign keys from associated columns (they are likely wrong)
+        #add in the relations for the composites
+        for constraint in table.constraints:
+            if isinstance(constraint, ForeignKeyConstraint):
+                if len(constraint.elements) >1:
+                    related_table = constraint.elements[0].column.table
+                    related_classname = singular(name2label(related_table.name, related_table.schema))
+                    
+                    print "and_(%s)"%', '.join(["%s.%s==%s.%s"%(model_name,
+                                                                        k.parent.name,
+                                                                        related_classname,
+                                                                        k.column.name)
+                                                      for k in constraint.elements])
                 
+                    primary_join = "and_(%s)"%', '.join(["%s.%s==%s.%s"%(model_name,
+                                                                        k.parent.name,
+                                                                        related_classname,
+                                                                        k.column.name)
+                                                      for k in constraint.elements])
+                    rel = relation(related_classname,
+                                   primaryjoin=primary_join
+#                                   foreign_keys=[k.parent for k in constraint.elements]
+                               )
+                    
+                    rel._as_string = primary_join
+                    setattr(Temporal, related_table.name, rel) # _deferred_relationship(Temporal, rel))
+                
+        
         #add in many-to-many relations
         for join_table in self.get_related_many_to_many_tables(table.name):
 
@@ -350,7 +367,6 @@ class ModelFactory(object):
                         if related_table not in self.tables:
                             continue
                         log.info('    Adding <secondary> foreign key(%s) for:%s'%(key, related_table.name))
-#                        import ipdb; ipdb.set_trace()
                         setattr(Temporal, plural(related_table.name), _deferred_relationship(Temporal,
                                                                                          relation(singular(name2label(related_table.name,
                                                                                                              related_table.schema)),
