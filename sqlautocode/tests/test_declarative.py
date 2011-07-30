@@ -263,6 +263,20 @@ class TestModelFactoryMulti:
         self.factory.models
         song = self.factory.models[1]
         print song.__repr__()
-        eq_(song.__repr__(), '')
+        eq_(song.__repr__(), """class Song(DeclarativeBase):
+    __tablename__ = 'song'
+
+    __table_args__ = {}
+
+    #column definitions
+    songalbum = Column(u'songalbum', TEXT(length=None, convert_unicode=False, assert_unicode=None, unicode_error=None, _warn_on_bytestring=False), ForeignKey('album.albumname'))
+    songartist = Column(u'songartist', TEXT(length=None, convert_unicode=False, assert_unicode=None, unicode_error=None, _warn_on_bytestring=False), ForeignKey('album.albumartist'))
+    songid = Column(u'songid', INTEGER(), primary_key=True)
+    songname = Column(u'songname', TEXT(length=None, convert_unicode=False, assert_unicode=None, unicode_error=None, _warn_on_bytestring=False))
+
+    #relation definitions
+    album = relation('Album', primaryjoin="and_(Song.songartist==Album.albumartist, Song.songalbum==Album.albumname)")
+"""
+    )
         
  

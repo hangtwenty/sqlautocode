@@ -330,13 +330,7 @@ class ModelFactory(object):
                 if len(constraint.elements) >1:
                     related_table = constraint.elements[0].column.table
                     related_classname = singular(name2label(related_table.name, related_table.schema))
-                    
-                    print "and_(%s)"%', '.join(["%s.%s==%s.%s"%(model_name,
-                                                                        k.parent.name,
-                                                                        related_classname,
-                                                                        k.column.name)
-                                                      for k in constraint.elements])
-                
+                                    
                     primary_join = "and_(%s)"%', '.join(["%s.%s==%s.%s"%(model_name,
                                                                         k.parent.name,
                                                                         related_classname,
