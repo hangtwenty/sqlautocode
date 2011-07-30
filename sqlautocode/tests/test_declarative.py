@@ -1,11 +1,16 @@
 import os
+import pprint as pp
 from nose.tools import eq_
 from sqlautocode.declarative import ModelFactory
 from sqlalchemy.orm import class_mapper
 testdb = 'sqlite:///'+os.path.abspath(os.path.dirname(__file__))+'/data/devdata.db'
 #testdb = 'postgres://postgres@localhost/TestSamples'
 
-from base import make_test_db
+from base import make_test_db, make_test_db_multi
+
+class DummyOptions:
+    
+    tables = None
 
 class DummyConfig:
 
@@ -16,17 +21,19 @@ class DummyConfig:
     example = True
     schema = None
     interactive = None
+    
+    options=DummyOptions()
 #    schema = ['pdil_samples', 'pdil_tools']
 
 
-class TestModelFactory:
+class _TestModelFactory:
 
     def setup(self):
         self.config = DummyConfig()
         self.factory = ModelFactory(self.config)
 
     def test_tables(self):
-        tables = sorted(self.factory.tables)
+        tables = sorted([t.name for t in self.factory.tables])
         eq_(tables,  [u'tg_group', u'tg_group_permission', u'tg_permission', u'tg_town', u'tg_user', u'tg_user_group'])
 
     def _setup_all_models(self):
@@ -57,9 +64,8 @@ class TestModelFactory:
         eq_(tables, [u'tg_user_group'])
 
     def test_get_foreign_keys(self):
-        columns = [column[0].name for column in self.factory.get_foreign_keys(self.factory._metadata.tables['tg_user']).values()]
+        columns = [c[0].column.name for c in self.factory.get_foreign_keys(self.factory._metadata.tables['tg_user']).values()]
         eq_(columns, ['town_id'])
-
 
     def test_model___repr__(self):
         models = sorted(self._setup_all_models())
@@ -174,7 +180,7 @@ print 'All TgGroup objects: %s'%objs"""
         assert expected in r, r
 
 
-class TestModelFactoryNew:
+class _TestModelFactoryNew:
 
     def setup(self):
         self.metadata = make_test_db()
@@ -184,7 +190,7 @@ class TestModelFactoryNew:
         self.factory.models
 
     def test_tables(self):
-        tables = sorted(self.factory.tables)
+        tables = sorted([t.name for t in self.factory.tables])
         eq_(tables,  [u'environment', u'report', u'ui_report'])
 
     def test_setup_all_models(self):
@@ -231,3 +237,21 @@ class TestModelFactoryNew:
     environment = relation('Environment', primaryjoin='Report.environment_id==Environment.environment_id')
     environments = relation('Environment', primaryjoin='Report.report_id==UiReport.report_id', secondary=ui_report, secondaryjoin='UiReport.environment_id==Environment.environment_id')
 """, s
+
+        
+class TestModelFactoryMulti:
+
+    def setup(self):
+        self.metadata = make_test_db_multi()
+        engine = self.metadata.bind
+        self.config = DummyConfig(engine)
+        self.factory = ModelFactory(self.config)
+#        self.factory.models
+
+    def test_get_foreign_keys(self):
+        fks = [t.name for t in self.factory.get_foreign_keys(self.metadata.tables['song']).keys()]
+        
+#        import ipdb; ipdb.set_trace()
+#        pp.pprint(fks)
+        eq_(fks, ['album'])
+        

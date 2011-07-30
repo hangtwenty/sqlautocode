@@ -69,7 +69,7 @@ def column_repr(self):
 
     name = self.name
 
-    if not hasattr(config, 'options') and config.options.generictypes:
+    if not hasattr(config, 'options') and self.config.options.generictypes:
         coltype = repr(self.type)
     elif type(self.type).__module__ == 'sqlalchemy.types':
         coltype = repr(self.type)
@@ -111,6 +111,7 @@ class ModelFactory(object):
         self.used_table_names = []
         schema = getattr(self.config, 'schema', None)
         self._metadata = MetaData(bind=config.engine)
+        self._foreign_keys = {}
         kw = {}
         self.schemas = None
         if schema:
@@ -169,10 +170,10 @@ class ModelFactory(object):
 
     @property
     def tables(self):
-        if config.options.tables:
-            tables = set(config.options.tables)
+        if self.config.options.tables:
+            tables = set(self.config.options.tables)
             return [self._metadata.tables[t] for t in set(self._metadata.tables.keys()).intersection(tables)]
-        return self._metadata.tables
+        return self._metadata.tables.values()
 
     @property
     def table_names(self):
@@ -300,28 +301,27 @@ class ModelFactory(object):
             del Temporal._decl_class_registry['Temporal']
 
         #add in single relations
-        fks = self.get_foreign_keys(table)
-        for related_table in sorted(fks.keys(), by_name):
+        fks = self.get_single_foreign_keys_by_column(table)
+        for column, fk in fks.iteritems():
+            related_table = fk.column.table
             if related_table not in self.tables:
                 continue
-            columns = fks[related_table]
-            if len(columns)>1:
-                continue
-            column = columns[0]
+
             log.info('    Adding <primary> foreign key for:%s'%related_table.name)
             backref_name = plural(table_name)
             rel = relation(singular(name2label(related_table.name, related_table.schema)), 
-                           primaryjoin=column==list(column.foreign_keys)[0].column)#, backref=backref_name)
+                           primaryjoin=column==fk.column)#, backref=backref_name)
+        
             setattr(Temporal, related_table.name, _deferred_relationship(Temporal, rel))
         
-        
+        #add in compound foreign_keys
+    
         #add in many-to-many relations
         for join_table in self.get_related_many_to_many_tables(table.name):
 
             if join_table not in self.tables:
                 continue
             primary_column = [c for c in join_table.columns if c.foreign_keys and list(c.foreign_keys)[0].column.table==table][0]
-#            import ipdb; ipdb.set_trace();
             
             for column in join_table.columns:
                 if column.foreign_keys:
@@ -357,22 +357,50 @@ class ModelFactory(object):
                     return table
         return self._metadata.tables[name]
 
+    def get_single_foreign_keys_by_column(self, table):
+        keys_by_column = {}
+        fks = self.get_foreign_keys(table)
+        for table, keys in fks.iteritems():
+            if len(keys) == 1:
+                fk = keys[0]
+                keys_by_column[fk.parent] = fk
+        return keys_by_column
+
+    def compound_foreign_keys(self, table):
+        l = []
+        fks = self.get_foreign_keys(table)
+        for table, keys in fks:
+            if len(keys)>1:
+                l.append(keys)
+        return l
+        
+        
     def get_foreign_keys(self, table):
-        fks = {}
-        for column in table.columns:
-            if len(column.foreign_keys)>0:
-                fks.setdefault(list(column.foreign_keys)[0].column.table, []).append(column)
-        return fks
+        if table in self._foreign_keys:
+            return self._foreign_keys[table]
+        
+        fks = table.foreign_keys
+
+        #group fks by table.  I think this is needed because of a problem in the sa reflection alg.
+        grouped_fks = {}
+        for key in fks:
+            grouped_fks.setdefault(key.column.table, []).append(key)
+        
+        self._foreign_keys[table] = grouped_fks
+        return grouped_fks
+    
+#        fks = {}
+#        for column in table.columns:
+#            if len(column.foreign_keys)>0:
+#                fks.setdefault(column.name, []).extend(column.foreign_keys)
+#        return fks
 
     def is_many_to_many_table(self, table):
-        fks = self.get_foreign_keys(table).values()
-        if len(fks) >= 2:
-            if len(fks[0]) == 1 and len(fks[1]) == 1:
-                return list(fks[0][0].foreign_keys)[0].column.table != list(fks[1][0].foreign_keys)[0].column.table
-        return False
+        fks = self.get_single_foreign_keys_by_column(table).values()
+        return len(fks) >= 2
 
     def is_only_many_to_many_table(self, table):
-        return len(self.get_foreign_keys(table)) == 2 and len(table.c) == 2
+        return len(self.get_single_foreign_keys_by_column(table)) == 2 and len(table.c) == 2
 
     def get_many_to_many_tables(self):
         if not hasattr(self, '_many_to_many_tables'):
