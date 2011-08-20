@@ -180,7 +180,7 @@ print 'All TgGroup objects: %s'%objs"""
         assert expected in r, r
 
 
-class _TestModelFactoryNew:
+class TestModelFactoryNew:
 
     def setup(self):
         self.metadata = make_test_db()
@@ -191,7 +191,7 @@ class _TestModelFactoryNew:
 
     def test_tables(self):
         tables = sorted([t.name for t in self.factory.tables])
-        eq_(tables,  [u'environment', u'report', u'ui_report'])
+        eq_(tables,  [u'environment', u'no_pk', u'report', u'ui_report'])
 
     def test_setup_all_models(self):
         assert len(self.factory.models) == 3
@@ -201,6 +201,8 @@ class _TestModelFactoryNew:
         s = self.factory.models[0].__repr__()
         assert s == """class Environment(DeclarativeBase):
     __tablename__ = 'environment'
+
+    __table_args__ = {}
 
     #column definitions
     database_host = Column(u'database_host', VARCHAR(length=100, convert_unicode=False, assert_unicode=None, unicode_error=None, _warn_on_bytestring=False), nullable=False)
@@ -215,10 +217,19 @@ class _TestModelFactoryNew:
     reports = relation('Report', primaryjoin='Environment.environment_id==UiReport.environment_id', secondary=ui_report, secondaryjoin='UiReport.report_id==Report.report_id')
 """, s
 
+    def test_no_pk_table_in_output(self):
+        s = self.factory.__repr__()
+        assert """no_pk = Table(u'no_pk', metadata,
+    Column(u'data', TEXT(length=None, convert_unicode=False, assert_unicode=None, unicode_error=None, _warn_on_bytestring=False)),
+)""" in s, s
+        
+        
     def test_repr_report(self):
         s = self.factory.models[1].__repr__()
         assert s == """class Report(DeclarativeBase):
     __tablename__ = 'report'
+
+    __table_args__ = {}
 
     #column definitions
     created_by = Column(u'created_by', NUMERIC(precision=10, scale=0, asdecimal=True), nullable=False)
@@ -262,7 +273,6 @@ class TestModelFactoryMulti:
     def test_render_song(self):
         self.factory.models
         song = self.factory.models[1]
-        print song.__repr__()
         eq_(song.__repr__(), """class Song(DeclarativeBase):
     __tablename__ = 'song'
 

@@ -139,6 +139,7 @@ class ModelFactory(object):
 
     def __repr__(self):
         tables = self.get_many_to_many_tables()
+        tables.extend(self.get_tables_with_no_pks())
         models = self.models
 
         s = StringIO()
@@ -185,8 +186,21 @@ class ModelFactory(object):
             return self._models
         self.used_model_names = []
         self.used_table_names = []
-        self._models = sorted((self.create_model(table) for table in self.get_non_many_to_many_tables()), by__name__)
+        self._models = []
+        for table in self.get_non_many_to_many_tables():
+            try:
+                self._models.append(self.create_model(table))
+            except exc.ArgumentError:
+                log.warning("Table with name %s ha no primary key. No ORM class created"%table.name)
+        self._models.sort(by__name__)
         return self._models
+    
+    def get_tables_with_no_pks(self):
+        r = []
+        for table in self.get_non_many_to_many_tables():
+            if not [c for c in table.columns if c.primary_key]:
+                r.append(table)
+        return r
     
     def model_table_lookup(self):
         if hasattr(self, '_model_table_lookup'):
@@ -216,6 +230,7 @@ class ModelFactory(object):
 
         mtl = self.model_table_lookup
 
+            
         class Temporal(self.DeclarativeBase):
             __table__ = table
             
@@ -254,7 +269,7 @@ class ModelFactory(object):
 #                if rel.backref:
 #                    backref=", backref='%s'"%rel.backref.key
                 return "%s = relation('%s'%s%s%s%s)"%(rel.key, target, primaryjoin, secondary, secondaryjoin, backref)
-
+                
             @classmethod
             def __repr__(cls):
                 log.debug('repring class with name %s'%cls.__name__)
