@@ -3,6 +3,30 @@ import config, util, constants
 from util import emit
 from declarative import ModelFactory
 
+def emit_table(indent, db, options, table):
+    """Emit table representation."""
+    emit('%s%s%s%s = %r' % (indent, options.table_prefix, table.name, options.table_suffix, table))
+    emit_index(indent, db, options, table)
+
+def emit_z3c_objects(indent, db, options, table):
+    emit_table(indent, db, options, table)
+    emit(indent + ('class %(tn)sObject(MappedClassBase): pass\n'
+                    '%(tab)smapper(%(tn)sObject, %(tn)s)') % {'tn':table.name, 'tab':indent})
+
+def emit_index(indent, db, options, table):
+    """docstring for emit_index"""
+    if not options.noindex:
+        indexes = []
+        if not table.indexes:
+            # for certain dialects we need to include index support
+            if hasattr(db.dialect, 'indexloader'):
+                indexes = db.dialect.indexloader(db).indexes(table)
+            else:
+                print >>config.err, 'It seems that this dialect does not support indexes!'
+        else:
+            indexes = list(table.indexes)
+        emit(*[indent + repr(index) for index in indexes])
+
 def main():
     config.configure()
 
@@ -28,21 +52,23 @@ def main():
     formatter.monkey_patch_sa()
     
     import sqlalchemy
+    from sqlalchemy.engine.reflection import Inspector
     db, options = config.engine, config.options
     metadata = sqlalchemy.MetaData(db)
 
     print >>config.err, 'Starting...'
     conn = db.connect()
+    inspector = Inspector.from_engine(conn)
 
     if options.schema != None:
         reflection_schema=options.schema
     else:
         try:
-            reflection_schema = db.dialect._get_default_schema_name(conn)
+            reflection_schema = inspector.default_schema_name
         except NotImplementedError:
             reflection_schema = None
 
-    tablenames = db.dialect.get_table_names(conn, reflection_schema)
+    tablenames = inspector.get_table_names(reflection_schema)
 
     # fixme: don't set up output until we're sure there's work to do!
     if options.tables:
@@ -62,8 +88,10 @@ def main():
     if options.generictypes:
         dialect = ''
     else:
-        dialect = 'from sqlalchemy.databases.%s import *\n' % db.name
-
+        d1 = 'from sqlalchemy.databases.%s import *\n' % db.name
+        d2 = 'from sqlalchemy.dialects.%s import *\n' % db.name
+        #Determine with one is correct...
+        dialect = util.select_imports([d1, d2])
     
     header = options.z3c and constants.HEADER_Z3C or constants.HEADER
     emit(header % {'dialect': dialect, 'encoding': options.encoding})
@@ -72,8 +100,7 @@ def main():
         print >>config.err, "Generating python model for table %s" % (
             util.as_sys_str(tname))
 
-        table = sqlalchemy.Table(tname, metadata, schema=reflection_schema,
-                                 autoload=True)
+        table = sqlalchemy.Table(tname, metadata, schema=reflection_schema, autoload=True)
         if options.schema is None:
             # we're going to remove the schema from the table so that it
             #  isn't rendered in the output.  If we don't put back the
@@ -81,34 +108,19 @@ def main():
             #  this one.
             original_schema = table.schema
             table.schema = None
+        else:
+            original_schema = options.schema
 
-        else: original_schema = options.schema
+        indent = ''
 
         INC = '\n\n'
+        emit(INC)
         if options.z3c:
-            INC = INC + 4*' '
-
-        emit('%s%s%s%s = %r' % (INC, options.table_prefix, tname, options.table_suffix, table))
-
-        if options.z3c:
-            emit(INC + ('class %(tn)sObject(MappedClassBase): pass\n'
-                             'mapper(%(tn)sObject, %(tn)s)') % {'tn':tname})
+            emit_z3c_objects(constants.TAB, db, options, table)
+        else:
+            emit_table('', db, options, table)
 
         table.schema = original_schema
-        
-        # directly print indices after table def
-        if not options.noindex:
-            indexes = []
-            if not table.indexes:
-                # for certain dialects we need to include index support
-                if hasattr(db.dialect, 'indexloader'):
-                    indexes = db.dialect.indexloader(db).indexes(table)
-                else:
-                    print >>config.err, 'It seems that this dialect does not support indexes!'
-            else:
-                indexes = list(table.indexes)
-
-            util.emit(*[repr(index) for index in indexes])
 
     if options.z3c:
         emit(constants.FOOTER_Z3C)

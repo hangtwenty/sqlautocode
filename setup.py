@@ -5,7 +5,7 @@
 Setup script for building sqlautocode
 """
 
-version = '0.6b1'
+version = '0.7b5'
 
 from setuptools import setup, find_packages
 
@@ -19,7 +19,7 @@ setup (name = 'sqlautocode',
 		zip_safe=True,
 		license = 'MIT',
 		classifiers = [
-			"Development Status :: 4 - Beta",
+			"Development Status :: 5 - Beta",
 			"Intended Audience :: Developers",
 			"Programming Language :: Python",
 		],

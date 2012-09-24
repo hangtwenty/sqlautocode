@@ -1,26 +1,7 @@
 # Nice print stuff
-TAB = 12*' '
+TAB = 4*' '
 
 NLTAB = ',\n'+TAB
-
-USAGE = """usage: autoload.py [options]
-
-Generates python code for a given database schema.
-
-options:
-    -h, --help                      Show this help
-    -u URL,         --url URL       Database url (e.g.: postgresql+psycopg2://postgres:user@password/Database)
-    -o FILE,        --output FILE   Where to put the output (default is stdout)
-    -s NAME,        --schema NAME   Name of the schema to output (default is 'default')
-    -t T1,T2,.. ,   --tables T1,T2  Name of tables to inspect (default is 'all').
-                                    Support globbing character to select more tables.
-                                    ex.: -t Download* will generate a model for all tables starting with Download
-
-    -i              --noindex       Do not generate index information
-    -g              --generic-types Generate generic column types rather than database-specific type
-    -e              --example       Generate code with examples how to access data
-    -3              --z3c           Generate code for use with z3c.sqlalchemy
-"""
 
 HEADER = """\
 # -*- coding: %(encoding)s -*-
@@ -71,12 +52,9 @@ if __name__ == '__main__':
         print row
 """
 
-TABLE = """ Table('%(name)s', metadata,
-    %(columns)s,
-    %(constraints)s
-    %(schema)s
-    )
-"""
+#I suppose you wondering why here we use list for columns and constraints 
+#python have a maximum number of arguments set to 255 ;(
+TABLE = """Table('%(name)s', metadata,*[%(columns)s,%(constraints)s]%(schema)s)"""
 
 COLUMN = """Column(%(name)r, %(type)s%(constraints)s%(args)s)"""
 
@@ -117,3 +95,4 @@ except:
     'Failed. please easy_install ipython'
 """
 
+CHECK_CONSTRAINT = """CheckConstraint('%(sqltext)s')"""

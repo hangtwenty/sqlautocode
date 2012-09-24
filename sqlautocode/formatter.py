@@ -12,11 +12,14 @@ def table_repr(self):
             [repr(cn) for cn in self.constraints
             if not isinstance(cn, sqlalchemy.PrimaryKeyConstraint)]),
         'index': '',
-        'schema': self.schema != None and "schema='%s'" % self.schema or '',
+        'schema': self.schema != None and ",\n%sschema='%s'" % (constants.TAB, self.schema) or '',
         }
 
     if data['constraints']:
-        data['constraints'] = data['constraints'] + ','
+        data['constraints'] = '\n%s%s,' % (constants.TAB, data['constraints'])
+
+    if data['columns']:
+        data['columns'] = '\n%s%s' % (constants.TAB, data['columns'])
 
     return util.as_out_str(constants.TABLE % data)
 
@@ -39,7 +42,9 @@ def column_repr(self):
         kwarg.append( 'nullable')
     if self.onupdate:
         kwarg.append( 'onupdate')
-    if self.default:
+    #issue: 
+    #http://www.sqlalchemy.org/trac/wiki/06Migration#AnImportantExpressionLanguageGotcha
+    if self.default is not None:
         kwarg.append( 'default')
     elif self.server_default:
         self.default = self.server_default.arg
@@ -77,9 +82,9 @@ def column_repr(self):
             }
 
     if data['constraints']:
-        if data['constraints']: data['constraints'] = ', ' + data['constraints']
+        data['constraints'] = ', ' + data['constraints']
     if data['args']:
-        if data['args']: data['args'] = ', ' + data['args']
+        data['args'] = ', ' + data['args']
 
     return util.as_out_str(constants.COLUMN % data)
 
@@ -105,9 +110,14 @@ def index_repr(index):
             }
     return util.as_out_str(constants.INDEX % data)
 
+def check_constraint_repr(cc):
+    data = {'sqltext': cc.sqltext}
+    return util.as_out_str(constants.CHECK_CONSTRAINT % data)
+
 def monkey_patch_sa():
     sqlalchemy.sql.expression._TextClause.__repr__ = textclause_repr
     sqlalchemy.schema.Table.__repr__ = table_repr
     sqlalchemy.schema.Column.__repr__ = column_repr
     sqlalchemy.schema.ForeignKeyConstraint.__repr__ = foreignkeyconstraint_repr
     sqlalchemy.schema.Index.__repr__ = index_repr
+    sqlalchemy.schema.CheckConstraint.__repr__ = check_constraint_repr

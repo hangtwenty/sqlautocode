@@ -172,3 +172,17 @@ def name2label(name, schema=None):
     label = str(''.join([s.capitalize() for s in
                re.findall(r'([A-Z][a-z0-9]+|[a-z0-9]+|[A-Z0-9]+)', name)]))
     return label
+
+def select_imports(x):
+    """
+    Try import modules used in output file eg: dialect.
+    Return first valid string or ''.
+    """
+    for i in x:
+        try:
+            exec(i)
+            return i
+        except:
+           pass
+    return ''
+

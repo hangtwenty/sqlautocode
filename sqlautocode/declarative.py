@@ -317,8 +317,8 @@ class ModelFactory(object):
         Temporal.__table_args__ = {} 
         
         #add in the schema
-        if self.config.schema:
-            Temporal.__table_args__[1]['schema'] = table.schema
+        #if self.config.schema:
+            #Temporal.__table_args__[1]['schema'] = table.schema
 
         #trick sa's model registry to think the model is the correct name
         if model_name != 'Temporal':

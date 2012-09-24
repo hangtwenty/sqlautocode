@@ -1,3 +1,15 @@
+0.7b5
+		Fix table indent.
+		Fix in column_repr, boolean expressions issue.
+			Info: http://www.sqlalchemy.org/trac/wiki/06Migration#AnImportantExpressionLanguageGotcha
+		Fix CheckConstraints representation (merging issue 40)
+		Fix selecting proper dialect that is used in main.py (more info at issue 30) 
+		Fix indent for z3c generator.
+		Fix maximum number of arguments that could be passed into the table.
+			Info: http://stackoverflow.com/questions/714475/what-is-a-maximum-number-of-arguments-in-a-python-function
+		Refactoring main.py for better overview.	
+		[ghetman]
+
 0.6 (unreleased)
 	  Some more fixes for Issues 16 to 24
 	  [spamsch]
