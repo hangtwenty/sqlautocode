@@ -140,7 +140,7 @@ def _setup_engine(parser, url):
         engine = sqlalchemy.create_engine(url)
         test = engine.connect()
         test.close()
-    except sqlalchemy.exceptions.SQLAlchemyError, ex:
+    except sqlalchemy.exc.SQLAlchemyError, ex:
         parser.error('Could not connect to "%s": %s' % (url, ex))
 
 
