@@ -3,6 +3,17 @@ AutoCode is a flexible tool to autogenerate a model from an existing database.
 This is a slightly different approach to SqlSoup, 
 that lets you use tables without explicitly defining them.
 
+Requirements:
+
+    sqlalchemy 0.6+
+
+Documentation:
+
+    Call sqlautocode --help for a list of available options.
+
+    Example:
+    sqlautocode -o model.py -u postgres://postgres:user@password/MyDatabase -s myschema -t Person*,Download
+
 Current Maintainer:
     
     Chris Perkins (percious)
@@ -25,17 +36,6 @@ License:
     
     MIT
     see license.txt
-
-Requirements:
-
-    sqlalchemy 0.6+
-
-Documentation:
-
-    Call sqlautocode.py --help for a list of available self explaining options.
-
-    Example:
-    sqlautocode.py -o model.py -u postgres://postgres:user@password/MyDatabase -s myschema -t Person*,Download
 
 ToDo:
 
