@@ -11,8 +11,10 @@ Documentation:
 
     Call sqlautocode --help for a list of available options.
 
-    Example:
-    sqlautocode -o model.py -u postgres://postgres:user@password/MyDatabase -s myschema -t Person*,Download
+    Examples:
+    
+        sqlautocode -o model.py mysql://foo@bar/my_database
+        sqlautocode -o model.py -u postgres://postgres:user@password/MyDatabase -s myschema -t Person*,Download
 
 Current Maintainer:
     
@@ -21,6 +23,9 @@ Current Maintainer:
 
     Simon Pamies (spamsch)
     E-Mail: s.pamies at banality dot de
+    
+    Michael Floering - maintains mirror on GitHub
+    github.com/hangtwenty
 
 Authors:
 
